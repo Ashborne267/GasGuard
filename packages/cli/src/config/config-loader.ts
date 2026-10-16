@@ -44,6 +44,7 @@ async function loadConfigFile(
   }
 
   const migratedConfig = migrateCliConfig(config, resolvedPath);
+
   const extended = migratedConfig.extends;
   if (extended === undefined) {
     return migratedConfig;

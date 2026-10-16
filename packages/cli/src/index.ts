@@ -9,6 +9,7 @@ import { configCommand } from "./commands/config";
 import { versionCommand } from "./commands/version";
 import { policyCommand } from "./commands/policy";
 import { backlogCommand } from "./commands/backlog";
+import { compareCommand } from "./commands/compare";
 import { setCliOptions } from "./output";
 
 const program = new Command();
@@ -44,6 +45,7 @@ program.addCommand(configCommand);
 program.addCommand(versionCommand);
 program.addCommand(policyCommand);
 program.addCommand(backlogCommand);
+program.addCommand(compareCommand);
 
 // Handle unknown commands
 program.on("command:*", () => {

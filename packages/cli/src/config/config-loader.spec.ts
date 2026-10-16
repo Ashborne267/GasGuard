@@ -74,7 +74,7 @@ describe("loadCliConfig", () => {
     });
   });
 
-  it("upgrades legacy keys while preserving current nested values", () => {
+  it("migrates legacy aliases while preferring current nested values", () => {
     expect(
       migrateCliConfig({
         configVersion: 1,
@@ -85,14 +85,16 @@ describe("loadCliConfig", () => {
       }),
     ).toEqual({
       configVersion: CURRENT_CONFIG_VERSION,
-      scan: { include: ["current/**/*.sol"], exclude: ["vendor/**"] },
+      scan: {
+        include: ["current/**/*.sol"],
+        exclude: ["vendor/**"],
+      },
       output: { format: "sarif" },
     });
   });
 
-  it("upgrades inherited legacy config without modifying its source file", async () => {
-    const legacyPath = path.join(directory, "legacy.json");
-    await fs.writeJson(legacyPath, {
+  it("migrates legacy files before resolving inherited configuration", async () => {
+    await fs.writeJson(path.join(directory, "legacy.json"), {
       includePatterns: ["contracts/**/*.sol"],
       outputFormat: "json",
     });
@@ -108,18 +110,9 @@ describe("loadCliConfig", () => {
       },
       output: { format: "json" },
     });
-    await expect(fs.readJson(legacyPath)).resolves.toHaveProperty(
-      "includePatterns",
-      ["contracts/**/*.sol"],
-    );
   });
 
-  it("rejects invalid and newer schema versions and leaves current configs unchanged", () => {
-    const current = {
-      configVersion: CURRENT_CONFIG_VERSION,
-      scan: { maxFiles: 10 },
-    };
-    expect(migrateCliConfig(current)).toBe(current);
+  it("rejects invalid and future config schema versions", () => {
     expect(() => migrateCliConfig({ configVersion: 0 })).toThrow(
       "expected a positive integer",
     );

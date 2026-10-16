@@ -83,13 +83,11 @@ export const scanCommand = new Command("scan")
     "--max-files <count>",
     "Maximum number of source files to analyze",
     parsePositiveLimit,
-    DEFAULT_MAX_FILES,
   )
   .option(
     "--max-bytes <bytes>",
     "Maximum combined source size in bytes",
     parsePositiveLimit,
-    DEFAULT_MAX_BYTES,
   )
   .action(async (scanPath: string = ".", options: ScanCommandOptions) => {
     const controller = new AbortController();

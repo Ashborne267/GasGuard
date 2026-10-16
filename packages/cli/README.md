@@ -38,11 +38,35 @@ gasguard backlog report.json --format csv --output remediation.csv
 Supported formats are CSV (default), JSON, and Markdown. Without `--output`, the export is written to stdout. Items are sorted by severity, receive a deterministic ID and `open` status, and include source location, rule, message, suggestion, and optional gas-savings/confidence data. CSV cells are quoted and formula-prefixed values are escaped for spreadsheet safety. The input must be a GasGuard JSON scan report containing a `findings` array.
 
 See [Supported Runtime Matrix](../../docs/SUPPORTED_RUNTIME_MATRIX.md) for tested Node.js and Rust versions, and [Release Artifact Retention Policy](../../docs/RELEASE_ARTIFACT_POLICY.md) for artifact lifetime and recovery.
+### Backward-compatible config migrations
+
+New configs include `configVersion: 2`. Configs without this field and configs marked version `1` are treated as legacy and migrated in memory when loaded; the CLI does not rewrite the source file. Legacy top-level `includePatterns`, `excludePatterns`, and `outputFormat` are moved to `scan.include`, `scan.exclude`, and `output.format`. Existing nested values take precedence. A non-positive or non-integer schema version, or a version newer than the CLI supports, is rejected with an actionable error. Keep a copy of a config before manually changing its schema.
+
+### Historical report comparison
+
+Save JSON scan reports and compare them with `gasguard compare <baseline.json> <current.json>`. Use `--format json` for a machine-readable comparison or `--output <file>` to write either format to a file. A finding is matched by normalized file path, rule ID, severity, and message; source line movement alone does not count as a new or resolved finding. Both input reports must contain a `findings` array with `file`, `ruleId`, `severity`, and `message` strings on each finding.
+
+### Signed platform builds
+
+Published GitHub releases include standalone CLI executables for Linux x64, macOS x64, macOS arm64, and Windows x64, along with a Sigstore bundle for each executable. Verify a downloaded asset with cosign:
+
+```sh
+cosign verify-blob \
+  --bundle gasguard-linux-x64.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/MDTechLabs/GasGuard/.github/workflows/release-cli.yml@refs/tags/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  gasguard-linux-x64
+```
+
+The signing flow uses GitHub Actions OIDC and Sigstore; no signing key is stored in the repository. Release builds depend on the Node.js 20 toolchain, the `@yao-pkg/pkg` packager, GitHub Actions artifact/release services, and Sigstore's OIDC-backed signing services.
 
 ## Troubleshooting
 
 - `Interactive setup requires a TTY`: rerun `gasguard init` without `--interactive`, or run it from an interactive terminal.
 - `Configuration inheritance cycle detected`: remove the reference that points back to a config already in the inheritance chain.
+- `Unsupported configVersion`: upgrade the CLI or change the file to a schema version that the installed CLI supports.
+- `Unable to compare reports`: confirm both files are valid JSON scan reports and that every finding has `file`, `ruleId`, `severity`, and `message`.
+- Sigstore verification fails: verify the asset and `.sigstore.json` bundle came from the same published release, and use the expected GitHub workflow identity and OIDC issuer.
 - `Configuration file not found`: verify the parent path relative to the config that declares it, or correct the `--config` path.
 - `Unsupported configVersion`: upgrade the CLI or migrate the file to a supported schema version.
 - `Unable to export remediation backlog`: check that the input is valid JSON with a `findings` array and that the output directory is writable.
