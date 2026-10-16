@@ -1,0 +1,102 @@
+name: CLI Release Builds
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset }} CLI
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux-x64
+            asset: linux-x64
+          - runner: macos-15-intel
+            target: macos-x64
+            asset: macos-x64
+          - runner: macos-14
+            target: macos-arm64
+            asset: macos-arm64
+          - runner: windows-latest
+            target: win-x64
+            asset: windows-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile CLI
+        run: pnpm --filter @gasguard/cli build
+
+      - name: Package standalone executable
+        run: |
+          mkdir -p dist/release
+          pnpm dlx @yao-pkg/pkg@6.23.0 packages/cli/dist/packages/cli/src/index.js \
+            --targets node22-${{ matrix.target }} \
+            --output dist/release/gasguard-${{ matrix.asset }}${{ matrix.target == 'win-x64' && '.exe' || '' }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign executable with Sigstore
+        run: |
+          binary="dist/release/gasguard-${{ matrix.asset }}${{ matrix.target == 'win-x64' && '.exe' || '' }}"
+          cosign sign-blob --yes --bundle "${binary}.sigstore.json" "$binary"
+
+      - name: Upload signed executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.asset }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 90
+
+  attach-release-assets:
+    name: Attach CLI assets to release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Attach assets to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

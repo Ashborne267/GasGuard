@@ -3,7 +3,11 @@ import os from "os";
 import path from "path";
 import { generateJsonReport } from "../reporting/json-reporter";
 import { setCliOptions } from "../output";
-import { runScan } from "./scan";
+import {
+  collectScannableFiles,
+  RepositoryAnalysisError,
+  runScan,
+} from "./scan";
 
 jest.mock("../reporting/json-reporter", () => ({
   generateJsonReport: jest.fn().mockResolvedValue(undefined),
@@ -77,5 +81,31 @@ describe("runScan", () => {
     await expect(
       runScan(directory, { config: configPath, format: "text" }),
     ).rejects.toThrow("scan.maxFiles must be a positive safe integer");
+  });
+
+  it("honors include/exclude patterns and rejects file and byte limit overflow", async () => {
+    await fs.ensureDir(path.join(directory, "contracts"));
+    await fs.ensureDir(path.join(directory, "vendor"));
+    await fs.writeFile(path.join(directory, "contracts/A.sol"), "contract A {}");
+    await fs.writeFile(path.join(directory, "contracts/B.sol"), "contract B {}");
+    await fs.writeFile(path.join(directory, "vendor/C.sol"), "contract C {}");
+
+    await expect(
+      collectScannableFiles(directory, {
+        include: ["**/*.sol"],
+        exclude: ["vendor/**"],
+        maxFiles: 2,
+      }),
+    ).resolves.toHaveLength(2);
+    await expect(
+      collectScannableFiles(directory, { maxFiles: 1 }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "FILE_LIMIT_EXCEEDED",
+    });
+    await expect(
+      collectScannableFiles(directory, { maxBytes: 1 }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "SIZE_LIMIT_EXCEEDED",
+    });
   });
 });
