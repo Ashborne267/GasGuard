@@ -3,6 +3,8 @@ import path from "path";
 
 export type CliConfig = Record<string, unknown>;
 
+export const CURRENT_CONFIG_VERSION = 2;
+
 export async function loadCliConfig(
   configPath?: string,
   cwd: string = process.cwd(),
@@ -41,9 +43,11 @@ async function loadConfigFile(
     );
   }
 
-  const extended = config.extends;
+  const migratedConfig = migrateCliConfig(config, resolvedPath);
+
+  const extended = migratedConfig.extends;
   if (extended === undefined) {
-    return config;
+    return migratedConfig;
   }
   if (typeof extended !== "string" || extended.trim() === "") {
     throw new Error(
@@ -55,8 +59,56 @@ async function loadConfigFile(
   nextAncestors.add(resolvedPath);
   const parentPath = path.resolve(path.dirname(resolvedPath), extended);
   const parentConfig = await loadConfigFile(parentPath, nextAncestors);
-  const { extends: _extends, ...overrides } = config;
+  const { extends: _extends, ...overrides } = migratedConfig;
   return mergeConfig(parentConfig, overrides);
+}
+
+/** Upgrade older CLI config schemas in memory; loading never rewrites user files. */
+export function migrateCliConfig(
+  config: CliConfig,
+  source = "configuration",
+): CliConfig {
+  const version = config.configVersion ?? 1;
+  if (!Number.isSafeInteger(version) || typeof version !== "number" || version < 1) {
+    throw new Error(`Invalid configVersion in ${source}: expected a positive integer.`);
+  }
+  if (version > CURRENT_CONFIG_VERSION) {
+    throw new Error(
+      `Unsupported configVersion ${version} in ${source}; this CLI supports versions up to ${CURRENT_CONFIG_VERSION}.`,
+    );
+  }
+
+  if (version === CURRENT_CONFIG_VERSION) {
+    return config;
+  }
+
+  const migrated: CliConfig = { ...config };
+  const scan = isConfigObject(migrated.scan) ? { ...migrated.scan } : {};
+  const output = isConfigObject(migrated.output) ? { ...migrated.output } : {};
+
+  if (scan.include === undefined && Array.isArray(migrated.includePatterns)) {
+    scan.include = migrated.includePatterns;
+  }
+  if (scan.exclude === undefined && Array.isArray(migrated.excludePatterns)) {
+    scan.exclude = migrated.excludePatterns;
+  }
+  if (output.format === undefined && typeof migrated.outputFormat === "string") {
+    output.format = migrated.outputFormat;
+  }
+
+  delete migrated.includePatterns;
+  delete migrated.excludePatterns;
+  delete migrated.outputFormat;
+  if (Object.keys(scan).length > 0) {
+    migrated.scan = scan;
+  }
+  if (Object.keys(output).length > 0) {
+    migrated.output = output;
+  }
+  if (Object.prototype.hasOwnProperty.call(config, "configVersion")) {
+    migrated.configVersion = CURRENT_CONFIG_VERSION;
+  }
+  return migrated;
 }
 
 export function mergeConfig(base: CliConfig, override: CliConfig): CliConfig {

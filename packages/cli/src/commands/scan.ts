@@ -32,9 +32,8 @@ export interface ScanCommandOptions {
   summary?: boolean;
   fixPreview?: boolean;
   watch?: boolean;
-  confidence?: string;
   config?: string;
-  confidence: string;
+  confidence?: string;
   maxFiles?: number;
   maxBytes?: number;
 }
@@ -84,13 +83,11 @@ export const scanCommand = new Command("scan")
     "--max-files <count>",
     "Maximum number of source files to analyze",
     parsePositiveLimit,
-    DEFAULT_MAX_FILES,
   )
   .option(
     "--max-bytes <bytes>",
     "Maximum combined source size in bytes",
     parsePositiveLimit,
-    DEFAULT_MAX_BYTES,
   )
   .action(async (scanPath: string = ".", options: ScanCommandOptions) => {
     const controller = new AbortController();
@@ -102,8 +99,7 @@ export const scanCommand = new Command("scan")
           ? options.summary
           : undefined;
       const scanOptions = { ...options, summary: explicitSummary };
-      await runScan(scanPath, scanOptions);
-      await runScan(scanPath, options, controller.signal);
+      await runScan(scanPath, scanOptions, controller.signal);
 
       if (options.watch) {
         logInfo(
@@ -163,27 +159,28 @@ export async function runScan(
   if (scanConfig.maxFiles !== undefined && maxFiles === undefined) {
     throw new Error("scan.maxFiles must be a positive safe integer.");
   }
+  const maxBytes = getPositiveInteger(scanConfig.maxBytes);
+  if (scanConfig.maxBytes !== undefined && maxBytes === undefined) {
+    throw new Error("scan.maxBytes must be a positive safe integer.");
+  }
   const progress = startProgress(`Discovering files in ${scanPath}...`);
   let files: string[];
   try {
-    files = await collectScannableFiles(scanPath, include, exclude);
+    files = await collectScannableFiles(
+      scanPath,
+      {
+        include,
+        exclude,
+        maxFiles: options.maxFiles ?? maxFiles ?? DEFAULT_MAX_FILES,
+        maxBytes: options.maxBytes ?? maxBytes ?? DEFAULT_MAX_BYTES,
+      },
+      signal,
+    );
   } catch (error) {
     finishProgress(progress, "Unable to discover scan files.", true);
     throw error;
   }
-  if (maxFiles !== undefined) {
-    files = files.slice(0, maxFiles);
-  }
   console.log(chalk.blue(`\nScanning ${scanPath}...`));
-
-  const files = await collectScannableFiles(
-    scanPath,
-    {
-      maxFiles: options.maxFiles ?? DEFAULT_MAX_FILES,
-      maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
-    },
-    signal,
-  );
 
   if (files.length === 0) {
     finishProgress(progress, "No scannable files found.");
@@ -196,17 +193,16 @@ export async function runScan(
 
   let scanResults: ScanResult;
   try {
-    scanResults = await simulateScan(files);
+    scanResults = await analyzeRepositoryFiles(
+      files,
+      path.resolve(scanPath),
+      signal,
+    );
   } catch (error) {
     finishProgress(progress, "Scan failed.", true);
     throw error;
   }
   finishProgress(progress, `Scanned ${files.length} file(s).`);
-  const scanResults = await analyzeRepositoryFiles(
-    files,
-    path.resolve(scanPath),
-    signal,
-  );
 
   if (format === "json" || format === "both") {
     const outputPath =
@@ -238,7 +234,12 @@ export async function runScan(
 
 export async function collectScannableFiles(
   dirPath: string,
-  limits: { maxFiles?: number; maxBytes?: number } = {},
+  limits: {
+    maxFiles?: number;
+    maxBytes?: number;
+    include?: string[];
+    exclude?: string[];
+  } = {},
   signal?: AbortSignal,
 ): Promise<string[]> {
   const files: string[] = [];
@@ -282,16 +283,36 @@ export async function collectScannableFiles(
     "**/dist/**",
     "**/build/**",
   ];
-  const patterns = includePatterns.length
-    ? includePatterns
+  const patterns = limits.include?.length
+    ? limits.include
     : ["**/*.sol", "**/*.vy", "**/*.rs"];
-  const files = await glob(patterns, {
+  const discovered = await glob(patterns, {
     cwd: path.resolve(dirPath),
     absolute: true,
     nodir: true,
-    ignore: [...defaultExcludes, ...excludePatterns],
+    ignore: [...defaultExcludes, ...(limits.exclude ?? [])],
   });
-  return files.filter((file) => extensions.includes(path.extname(file))).sort();
+  for (const file of discovered
+    .filter((candidate) => extensions.includes(path.extname(candidate)))
+    .sort()) {
+    checkCancelled();
+    if (files.length >= maxFiles) {
+      throw new RepositoryAnalysisError(
+        `Repository exceeds the ${maxFiles} file limit.`,
+        "FILE_LIMIT_EXCEEDED",
+      );
+    }
+    const fileStats = await fs.stat(file);
+    if (totalBytes + fileStats.size > maxBytes) {
+      throw new RepositoryAnalysisError(
+        `Repository exceeds the ${maxBytes} byte limit.`,
+        "SIZE_LIMIT_EXCEEDED",
+      );
+    }
+    totalBytes += fileStats.size;
+    files.push(file);
+  }
+  return files;
 }
 
 function asConfigObject(value: unknown): Record<string, unknown> {
@@ -320,44 +341,6 @@ function getConfigFormat(
 function getConfigBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
-  async function walk(currentPath: string) {
-    checkCancelled();
-    const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      checkCancelled();
-      const fullPath = path.join(currentPath, entry.name);
-
-      if (entry.isDirectory()) {
-        if (
-          !["node_modules", ".git", "target", "dist", "build"].includes(
-            entry.name,
-          )
-        ) {
-          await walk(fullPath);
-        }
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name);
-        if (extensions.includes(ext)) {
-          const fileStats = await fs.stat(fullPath);
-          if (files.length >= maxFiles) {
-            throw new RepositoryAnalysisError(
-              `Repository exceeds the ${maxFiles} file limit.`,
-              "FILE_LIMIT_EXCEEDED",
-            );
-          }
-          if (totalBytes + fileStats.size > maxBytes) {
-            throw new RepositoryAnalysisError(
-              `Repository exceeds the ${maxBytes} byte limit.`,
-              "SIZE_LIMIT_EXCEEDED",
-            );
-          }
-          totalBytes += fileStats.size;
-          files.push(fullPath);
-        }
-      }
-    }
-  }
 
 function getPositiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0
