@@ -12,6 +12,7 @@ describe("interactive configuration", () => {
         autoFix: false,
       }),
     ).toEqual({
+      configVersion: 2,
       version: "1.0.0",
       scan: {
         include: ["contracts/**/*.sol", "src/**/*.rs"],

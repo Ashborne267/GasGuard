@@ -25,9 +25,25 @@ Nested objects are merged recursively, while arrays and scalar values in the chi
 
 Scan settings support `include` and `exclude` glob patterns, plus a positive integer `maxFiles`. Output settings support `format` (`text`, `json`, `sarif`, or `both`), `summary`, and `confidenceThreshold` between 0 and 1. Explicit scan flags take precedence over config defaults.
 
+New config files use `configVersion: 2`. Unversioned and version-1 configs are migrated in memory; legacy `includePatterns`, `excludePatterns`, and `outputFormat` keys move to `scan.include`, `scan.exclude`, and `output.format`. Existing nested settings take precedence. Config files are never rewritten automatically, and unsupported future versions fail with an error.
+
+## Remediation Backlog
+
+Export findings from a JSON scan report as an actionable backlog:
+
+```sh
+gasguard backlog report.json --format csv --output remediation.csv
+```
+
+Supported formats are CSV (default), JSON, and Markdown. Without `--output`, the export is written to stdout. Items are sorted by severity, receive a deterministic ID and `open` status, and include source location, rule, message, suggestion, and optional gas-savings/confidence data. CSV cells are quoted and formula-prefixed values are escaped for spreadsheet safety. The input must be a GasGuard JSON scan report containing a `findings` array.
+
+See [Supported Runtime Matrix](../../docs/SUPPORTED_RUNTIME_MATRIX.md) for tested Node.js and Rust versions, and [Release Artifact Retention Policy](../../docs/RELEASE_ARTIFACT_POLICY.md) for artifact lifetime and recovery.
+
 ## Troubleshooting
 
 - `Interactive setup requires a TTY`: rerun `gasguard init` without `--interactive`, or run it from an interactive terminal.
 - `Configuration inheritance cycle detected`: remove the reference that points back to a config already in the inheritance chain.
 - `Configuration file not found`: verify the parent path relative to the config that declares it, or correct the `--config` path.
+- `Unsupported configVersion`: upgrade the CLI or migrate the file to a supported schema version.
+- `Unable to export remediation backlog`: check that the input is valid JSON with a `findings` array and that the output directory is writable.
 - No progress indicator appears in a script: progress is terminal-only; omit redirection for interactive output or use `--no-progress` to state the intent explicitly.

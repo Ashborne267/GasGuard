@@ -2,13 +2,13 @@
   "name": "@gasguard/cli",
   "version": "1.0.0",
   "description": "GasGuard CLI tool for smart contract gas optimization analysis",
-  "main": "dist/index.js",
+  "main": "dist/packages/cli/src/index.js",
   "bin": {
-    "gasguard": "dist/index.js"
+    "gasguard": "dist/packages/cli/src/index.js"
   },
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/packages/cli/src/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
@@ -24,6 +24,9 @@
   ],
   "author": "GasGuard Team",
   "license": "MIT",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "dependencies": {
     "commander": "^11.0.0",
     "chalk": "^4.1.2",

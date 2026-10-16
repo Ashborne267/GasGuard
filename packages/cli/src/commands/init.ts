@@ -16,6 +16,7 @@ interface ConfigWizardAnswers {
 
 export function buildInteractiveConfig(answers: ConfigWizardAnswers) {
   return {
+    configVersion: 2,
     version: "1.0.0",
     scan: {
       include: parsePatternList(answers.include),
@@ -127,6 +128,7 @@ export const initCommand = new Command("init")
       }
 
       const defaultConfig = {
+        configVersion: 2,
         version: "1.0.0",
         scan: {
           include: ["**/*.sol", "**/*.vy", "**/*.rs"],

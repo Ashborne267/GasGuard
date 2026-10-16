@@ -1,7 +1,12 @@
 import fs from "fs-extra";
 import os from "os";
 import path from "path";
-import { loadCliConfig, mergeConfig } from "./config-loader";
+import {
+  CURRENT_CONFIG_VERSION,
+  loadCliConfig,
+  mergeConfig,
+  migrateCliConfig,
+} from "./config-loader";
 
 describe("loadCliConfig", () => {
   let directory: string;
@@ -67,6 +72,63 @@ describe("loadCliConfig", () => {
     await expect(loadCliConfig("child.json", directory)).resolves.toEqual({
       output: { summary: false, format: "text" },
     });
+  });
+
+  it("upgrades legacy keys while preserving current nested values", () => {
+    expect(
+      migrateCliConfig({
+        configVersion: 1,
+        includePatterns: ["legacy/**/*.sol"],
+        excludePatterns: ["vendor/**"],
+        outputFormat: "sarif",
+        scan: { include: ["current/**/*.sol"] },
+      }),
+    ).toEqual({
+      configVersion: CURRENT_CONFIG_VERSION,
+      scan: { include: ["current/**/*.sol"], exclude: ["vendor/**"] },
+      output: { format: "sarif" },
+    });
+  });
+
+  it("upgrades inherited legacy config without modifying its source file", async () => {
+    const legacyPath = path.join(directory, "legacy.json");
+    await fs.writeJson(legacyPath, {
+      includePatterns: ["contracts/**/*.sol"],
+      outputFormat: "json",
+    });
+    await fs.writeJson(path.join(directory, "child.json"), {
+      extends: "legacy.json",
+      scan: { exclude: ["vendor/**"] },
+    });
+
+    await expect(loadCliConfig("child.json", directory)).resolves.toEqual({
+      scan: {
+        include: ["contracts/**/*.sol"],
+        exclude: ["vendor/**"],
+      },
+      output: { format: "json" },
+    });
+    await expect(fs.readJson(legacyPath)).resolves.toHaveProperty(
+      "includePatterns",
+      ["contracts/**/*.sol"],
+    );
+  });
+
+  it("rejects invalid and newer schema versions and leaves current configs unchanged", () => {
+    const current = {
+      configVersion: CURRENT_CONFIG_VERSION,
+      scan: { maxFiles: 10 },
+    };
+    expect(migrateCliConfig(current)).toBe(current);
+    expect(() => migrateCliConfig({ configVersion: 0 })).toThrow(
+      "expected a positive integer",
+    );
+    expect(() => migrateCliConfig({ configVersion: "1" })).toThrow(
+      "expected a positive integer",
+    );
+    expect(() =>
+      migrateCliConfig({ configVersion: CURRENT_CONFIG_VERSION + 1 }),
+    ).toThrow("supports versions up to");
   });
 
   it("rejects missing parents, invalid extends values, and inheritance cycles", async () => {
