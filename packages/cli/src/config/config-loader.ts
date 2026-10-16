@@ -63,48 +63,48 @@ async function loadConfigFile(
   return mergeConfig(parentConfig, overrides);
 }
 
-/** Upgrade older CLI config schemas in memory; loading never rewrites user files. */
 export function migrateCliConfig(
   config: CliConfig,
   source = "configuration",
 ): CliConfig {
   const version = config.configVersion ?? 1;
-  if (!Number.isSafeInteger(version) || typeof version !== "number" || version < 1) {
-    throw new Error(`Invalid configVersion in ${source}: expected a positive integer.`);
+  if (
+    typeof version !== "number" ||
+    !Number.isSafeInteger(version) ||
+    version < 1
+  ) {
+    throw new Error(
+      `Invalid configVersion in ${source}: expected a positive integer.`,
+    );
   }
   if (version > CURRENT_CONFIG_VERSION) {
     throw new Error(
       `Unsupported configVersion ${version} in ${source}; this CLI supports versions up to ${CURRENT_CONFIG_VERSION}.`,
     );
   }
-
-  if (version === CURRENT_CONFIG_VERSION) {
-    return config;
-  }
+  if (version === CURRENT_CONFIG_VERSION) return config;
 
   const migrated: CliConfig = { ...config };
   const scan = isConfigObject(migrated.scan) ? { ...migrated.scan } : {};
   const output = isConfigObject(migrated.output) ? { ...migrated.output } : {};
-
   if (scan.include === undefined && Array.isArray(migrated.includePatterns)) {
     scan.include = migrated.includePatterns;
   }
   if (scan.exclude === undefined && Array.isArray(migrated.excludePatterns)) {
     scan.exclude = migrated.excludePatterns;
   }
-  if (output.format === undefined && typeof migrated.outputFormat === "string") {
+  if (
+    output.format === undefined &&
+    typeof migrated.outputFormat === "string"
+  ) {
     output.format = migrated.outputFormat;
   }
 
   delete migrated.includePatterns;
   delete migrated.excludePatterns;
   delete migrated.outputFormat;
-  if (Object.keys(scan).length > 0) {
-    migrated.scan = scan;
-  }
-  if (Object.keys(output).length > 0) {
-    migrated.output = output;
-  }
+  if (Object.keys(scan).length > 0) migrated.scan = scan;
+  if (Object.keys(output).length > 0) migrated.output = output;
   if (Object.prototype.hasOwnProperty.call(config, "configVersion")) {
     migrated.configVersion = CURRENT_CONFIG_VERSION;
   }

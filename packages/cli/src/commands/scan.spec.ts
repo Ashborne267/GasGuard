@@ -86,8 +86,14 @@ describe("runScan", () => {
   it("honors include/exclude patterns and rejects file and byte limit overflow", async () => {
     await fs.ensureDir(path.join(directory, "contracts"));
     await fs.ensureDir(path.join(directory, "vendor"));
-    await fs.writeFile(path.join(directory, "contracts/A.sol"), "contract A {}");
-    await fs.writeFile(path.join(directory, "contracts/B.sol"), "contract B {}");
+    await fs.writeFile(
+      path.join(directory, "contracts/A.sol"),
+      "contract A {}",
+    );
+    await fs.writeFile(
+      path.join(directory, "contracts/B.sol"),
+      "contract B {}",
+    );
     await fs.writeFile(path.join(directory, "vendor/C.sol"), "contract C {}");
 
     await expect(
