@@ -6,7 +6,8 @@
  */
 
 import { runAnalyzerSafely } from '@engine/core/analyzer-runner';
-import type { AnalyzerConfig, Finding as EngineFinding } from '@engine/core/analyzer-interface';
+import type { AnalyzerConfig } from '@engine/core/analyzer-interface';
+import { normalizeAnalysisResult, NormalizedFinding } from '@engine/core/result-normalizer';
 import {
   CommandInjectionAnalysisMetrics,
   CommandInjectionAnalysisMetricsSnapshot,
@@ -79,6 +80,8 @@ export interface CommandInjectionScanOutcome {
   findingsAlreadyPersisted: number;
   findingsByRule: Record<string, number>;
   fileErrors: Array<{ file: string; message: string }>;
+  /** Findings dropped or repaired by result normalization (see docs/ANALYZER_RESULT_NORMALIZATION.md). */
+  normalization: { droppedFindings: number; duplicateFindings: number; issues: number };
   durationMs: number;
 }
 
@@ -166,7 +169,7 @@ export class CommandInjectionScanJobHandler {
       );
     }
 
-    const result = outcome.result;
+    const result = normalizeAnalysisResult(outcome.result, { analyzerName: analyzer.getName() });
     let persisted: { created: number; existing: number };
     try {
       persisted = this.persist(payload, analyzer, result.findings);
@@ -181,7 +184,7 @@ export class CommandInjectionScanJobHandler {
     const snapshot: CommandInjectionAnalysisMetricsSnapshot = telemetry.snapshot();
     const findingsByRule: Record<string, number> = {};
     for (const f of result.findings) findingsByRule[f.ruleId] = (findingsByRule[f.ruleId] ?? 0) + 1;
-    const fileErrors = (result.errors ?? []).map(({ file, message }) => ({ file, message }));
+    const fileErrors = result.errors;
     const durationMs = this.now() - started;
 
     this.metrics?.recordAnalyzerDuration(analyzer.getName(), durationMs);
@@ -200,6 +203,11 @@ export class CommandInjectionScanJobHandler {
       findingsAlreadyPersisted: persisted.existing,
       findingsByRule,
       fileErrors,
+      normalization: {
+        droppedFindings: result.counts.dropped,
+        duplicateFindings: result.counts.duplicates,
+        issues: result.counts.issues,
+      },
       durationMs,
     };
 
@@ -212,6 +220,7 @@ export class CommandInjectionScanJobHandler {
       filesSkipped: scanOutcome.filesSkipped,
       skippedByReason: snapshot.skippedByReason,
       fileErrorCount: fileErrors.length,
+      normalization: scanOutcome.normalization,
       findingsDetected: scanOutcome.findingsDetected,
       findingsPersisted: scanOutcome.findingsPersisted,
       findingsAlreadyPersisted: scanOutcome.findingsAlreadyPersisted,
@@ -225,7 +234,7 @@ export class CommandInjectionScanJobHandler {
   private persist(
     payload: CommandInjectionScanJobPayload,
     analyzer: CommandInjectionAnalyzer,
-    engineFindings: EngineFinding[],
+    engineFindings: NormalizedFinding[],
   ): { created: number; existing: number } {
     const { organizationId, repositoryId, analysisJobId } = payload;
     const existingKeys = new Set<string>();
