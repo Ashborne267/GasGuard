@@ -7,7 +7,8 @@
 
 import { runAnalyzerSafely } from '@engine/core/analyzer-runner';
 import type { AnalyzerConfig } from '@engine/core/analyzer-interface';
-import { normalizeAnalysisResult, NormalizedFinding } from '@engine/core/result-normalizer';
+import { normalizeAnalysisResult, NormalizedFinding, normalizeFindingPath } from '@engine/core/result-normalizer';
+import { createLocationAnchor } from '@engine/core/location-mapper';
 import {
   CommandInjectionAnalysisMetrics,
   CommandInjectionAnalysisMetricsSnapshot,
@@ -172,7 +173,7 @@ export class CommandInjectionScanJobHandler {
     const result = normalizeAnalysisResult(outcome.result, { analyzerName: analyzer.getName() });
     let persisted: { created: number; existing: number };
     try {
-      persisted = this.persist(payload, analyzer, result.findings);
+      persisted = this.persist(payload, analyzer, result.findings, files);
     } catch {
       this.logger.warn('command_injection_scan.persistence_failed', {
         ...logFields,
@@ -235,6 +236,7 @@ export class CommandInjectionScanJobHandler {
     payload: CommandInjectionScanJobPayload,
     analyzer: CommandInjectionAnalyzer,
     engineFindings: NormalizedFinding[],
+    files: Map<string, string>,
   ): { created: number; existing: number } {
     const { organizationId, repositoryId, analysisJobId } = payload;
     const existingKeys = new Set<string>();
@@ -255,6 +257,12 @@ export class CommandInjectionScanJobHandler {
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
 
+    const contentByPath = new Map<string, string>();
+    for (const [p, content] of files) {
+      const norm = normalizeFindingPath(p);
+      if (norm !== undefined) contentByPath.set(norm, content);
+    }
+
     let created = 0;
     let existing = 0;
     for (const f of engineFindings) {
@@ -274,6 +282,10 @@ export class CommandInjectionScanJobHandler {
         ruleId: f.ruleId,
         filePath: f.location.file,
         line: f.location.startLine,
+        locationAnchor: createLocationAnchor(contentByPath.get(f.location.file) ?? '', {
+          startLine: f.location.startLine,
+          endLine: f.location.endLine,
+        }),
       });
       existingKeys.add(key);
       created++;

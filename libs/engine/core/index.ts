@@ -30,5 +30,8 @@ export * from "./compatibility-matrix";
 // Analyzer result normalization
 export * from "./result-normalizer";
 
+// Stable finding location mapping
+export * from "./location-mapper";
+
 // Analyzer plugin contract and lifecycle (#1154)
 export * from "./analyzer-plugin-contract";
