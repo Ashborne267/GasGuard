@@ -72,3 +72,76 @@ export interface GitHubIntegrationConfig {
   enablePackageBoundaries: boolean;
   enableAccessDiagnostics: boolean;
 }
+
+// --- Pull Request File Discovery (#1043) ---
+export interface PullRequestFile {
+  sha: string;
+  filename: string;
+  status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+  additions: number;
+  deletions: number;
+  changes: number;
+  blobUrl?: string;
+  rawUrl?: string;
+  contentsUrl?: string;
+  patch?: string;
+  previousFilename?: string;
+}
+
+export interface PullRequestChangeSummary {
+  totalFiles: number;
+  additions: number;
+  deletions: number;
+  changes: number;
+  files: PullRequestFile[];
+  filesByStatus: Record<string, number>;
+  affectedFileTypes: Record<string, number>;
+  hasSecurityOrConfigFileChanges: boolean;
+  criticalFilesTouched: string[];
+}
+
+export interface PullRequestDiscoveryOptions {
+  maxFiles?: number;
+  fileExtensions?: string[];
+  excludePatterns?: string[];
+  includePatch?: boolean;
+}
+
+// --- GitHub Organization Allowlist (#1042) ---
+export interface OrganizationAllowlistConfig {
+  allowedOrganizations: string[];
+  allowWildcards?: boolean;
+  strictCase?: boolean;
+  cacheTtlSeconds?: number;
+  requireVerifiedMembers?: boolean;
+}
+
+export interface OrganizationValidationResult {
+  allowed: boolean;
+  organization: string;
+  matchedPattern?: string;
+  reason?: string;
+  timestamp: Date;
+  isMember?: boolean;
+}
+
+// --- GitHub App Repository Installation Validation (#1041) ---
+export interface InstallationValidationResult {
+  valid: boolean;
+  installationId?: number;
+  targetType: 'User' | 'Organization' | 'Unknown';
+  targetId?: number;
+  repositorySelection: 'all' | 'selected';
+  permissions: Record<string, string>;
+  missingRequiredPermissions: string[];
+  status: 'active' | 'suspended' | 'not_installed' | 'unauthorized';
+  suspendedAt?: Date | null;
+  suspendedBy?: string | null;
+  errors: string[];
+  details?: string;
+}
+
+export interface InstallationValidationOptions {
+  requiredPermissions?: Record<string, string>;
+  checkAccess?: boolean;
+}

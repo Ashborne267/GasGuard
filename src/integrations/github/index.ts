@@ -6,6 +6,9 @@
  * - Private repository access diagnostics (#1048)
  * - Branch protection awareness (#1044)
  * - Repository language detection (#1046)
+ * - Pull request changed-file discovery (#1043)
+ * - GitHub organization allowlists (#1042)
+ * - GitHub repository installation validation (#1041)
  */
 
 export * from './types';
@@ -14,30 +17,55 @@ export * from './monorepo-boundaries';
 export * from './access-diagnostics';
 export * from './branch-protection';
 export * from './language-detection';
+export * from './pull-request-discovery';
+export * from './organization-allowlist';
+export * from './installation-validator';
 
 import { GitHubClient } from './github-client';
 import { MonorepoBoundaryDetector } from './monorepo-boundaries';
 import { AccessDiagnostics } from './access-diagnostics';
 import { BranchProtectionAwareness } from './branch-protection';
 import { LanguageDetector } from './language-detection';
-import { GitHubAuthConfig, GitHubRepository, GitHubIntegrationConfig } from './types';
+import { PullRequestFileDiscovery } from './pull-request-discovery';
+import { OrganizationAllowlist } from './organization-allowlist';
+import { InstallationValidator } from './installation-validator';
+import {
+  GitHubRepository,
+  GitHubIntegrationConfig,
+  OrganizationAllowlistConfig,
+} from './types';
+
+export interface ExtendedGitHubIntegrationConfig extends GitHubIntegrationConfig {
+  organizationAllowlist?: OrganizationAllowlistConfig;
+}
 
 /**
  * Main GitHub Integration class that combines all features
  */
 export class GitHubIntegration {
+  private repository: GitHubRepository;
   private client: GitHubClient;
   private monorepoDetector: MonorepoBoundaryDetector;
   private accessDiagnostics: AccessDiagnostics;
   private branchProtection: BranchProtectionAwareness;
   private languageDetector: LanguageDetector;
+  private prDiscovery: PullRequestFileDiscovery;
+  private allowlist?: OrganizationAllowlist;
+  private installationValidator: InstallationValidator;
 
-  constructor(config: GitHubIntegrationConfig) {
+  constructor(config: ExtendedGitHubIntegrationConfig) {
+    this.repository = config.repository;
     this.client = new GitHubClient(config.auth);
     this.monorepoDetector = new MonorepoBoundaryDetector(this.client);
     this.accessDiagnostics = new AccessDiagnostics(this.client, config.repository);
     this.branchProtection = new BranchProtectionAwareness(this.client, config.repository);
     this.languageDetector = new LanguageDetector(this.client, config.repository);
+    this.prDiscovery = new PullRequestFileDiscovery(this.client, config.repository);
+    this.installationValidator = new InstallationValidator(this.client, config.repository);
+
+    if (config.organizationAllowlist) {
+      this.allowlist = new OrganizationAllowlist(config.organizationAllowlist, this.client);
+    }
   }
 
   /**
@@ -75,15 +103,25 @@ export class GitHubIntegration {
     return this.languageDetector;
   }
 
-  private repository: GitHubRepository;
+  /**
+   * Get pull request file discovery (#1043)
+   */
+  getPullRequestDiscovery(): PullRequestFileDiscovery {
+    return this.prDiscovery;
+  }
 
-  constructor(config: GitHubIntegrationConfig) {
-    this.repository = config.repository;
-    this.client = new GitHubClient(config.auth);
-    this.monorepoDetector = new MonorepoBoundaryDetector(this.client);
-    this.accessDiagnostics = new AccessDiagnostics(this.client, config.repository);
-    this.branchProtection = new BranchProtectionAwareness(this.client, config.repository);
-    this.languageDetector = new LanguageDetector(this.client, config.repository);
+  /**
+   * Get organization allowlist (#1042)
+   */
+  getOrganizationAllowlist(): OrganizationAllowlist | undefined {
+    return this.allowlist;
+  }
+
+  /**
+   * Get repository installation validator (#1041)
+   */
+  getInstallationValidator(): InstallationValidator {
+    return this.installationValidator;
   }
 
   /**
@@ -94,12 +132,14 @@ export class GitHubIntegration {
     languages: any;
     branchProtection: any;
     access: any;
+    installation: any;
   }> {
     const results = {
       monorepo: false,
       languages: null,
       branchProtection: null,
       access: null,
+      installation: null,
     };
 
     try {
@@ -124,6 +164,11 @@ export class GitHubIntegration {
       // Run access diagnostics
       if (this.accessDiagnostics) {
         results.access = await this.accessDiagnostics.runDiagnostics();
+      }
+
+      // Validate installation
+      if (this.installationValidator) {
+        results.installation = await this.installationValidator.validateRepositoryInstallation();
       }
     } catch (error) {
       console.error('Repository analysis failed:', error);

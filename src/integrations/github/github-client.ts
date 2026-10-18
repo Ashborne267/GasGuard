@@ -216,4 +216,61 @@ export class GitHubClient {
       reset: new Date(rateData.reset * 1000),
     };
   }
+
+  /**
+   * Get pull request changed files (#1043)
+   */
+  async getPullRequestFiles(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    page = 1,
+    perPage = 100
+  ): Promise<any[]> {
+    const response = await this.client.get(
+      `/repos/${owner}/${repo}/pulls/${pullNumber}/files`,
+      { params: { page, per_page: perPage } }
+    );
+    return response.data;
+  }
+
+  /**
+   * Check if a user is a member of an organization (#1042)
+   */
+  async isOrgMember(org: string, username: string): Promise<boolean> {
+    try {
+      const response = await this.client.get(`/orgs/${org}/members/${username}`);
+      return response.status === 204 || response.status === 200;
+    } catch (error) {
+      if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 302)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get organization details (#1042)
+   */
+  async getOrganization(org: string): Promise<any> {
+    const response = await this.client.get(`/orgs/${org}`);
+    return response.data;
+  }
+
+  /**
+   * Get repository installation details (#1041)
+   */
+  async getRepositoryInstallation(owner: string, repo: string): Promise<any> {
+    const response = await this.client.get(`/repos/${owner}/${repo}/installation`);
+    return response.data;
+  }
+
+  /**
+   * Get App installation details (#1041)
+   */
+  async getAppInstallation(installationId: number | string): Promise<any> {
+    const response = await this.client.get(`/app/installations/${installationId}`);
+    return response.data;
+  }
+
 }
