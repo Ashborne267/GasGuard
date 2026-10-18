@@ -1,56 +1,78 @@
-# Build stage
-FROM node:18-alpine AS builder
+# ── Build Stage ──────────────────────────────────────────────────────────
+FROM node:20.18.0-alpine3.20 AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+# Copy workspace and lock files
 COPY package*.json ./
+COPY pnpm-lock.yaml ./
 COPY apps/api/package*.json ./apps/api/
 COPY libs/engine/package*.json ./libs/engine/
 COPY packages/rules/package*.json ./packages/rules/
 
-# Install dependencies
-RUN npm ci
+# Install dependencies using pinned lockfile
+RUN npm ci --ignore-scripts && \
+    npm cache clean --force
 
 # Copy source code
 COPY . .
 
-# Build the API
+# Build the API service
 RUN npm run build --workspace=apps/api
 
-# Production stage
-FROM node:18-alpine
+# Prune development dependencies for minimal production bundle
+RUN npm prune --production && \
+    npm cache clean --force
 
-RUN apk add --no-cache tini
+# ── Production Hardened Stage ───────────────────────────────────────────
+FROM node:20.18.0-alpine3.20 AS runner
+
+# Metadata labels (OCI specification)
+LABEL org.opencontainers.image.title="GasGuard API Service" \
+      org.opencontainers.image.description="Hardened, minimal container image for GasGuard backend API" \
+      org.opencontainers.image.vendor="MDTechLabs" \
+      org.opencontainers.image.version="1.0.0"
+
+# Install tini init system and ca-certificates with clean package cache
+RUN apk add --no-cache tini ca-certificates && \
+    rm -rf /var/cache/apk/* /tmp/* /root/.npm
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Create dedicated unprivileged non-root user and group (no shell login)
+RUN addgroup -g 10001 -S gasguard && \
+    adduser -S -D -H -u 10001 -h /app -s /sbin/nologin -G gasguard -g "GasGuard Service Account" gasguard
 
-# Copy package files and installed node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
-COPY --from=builder --chown=nodejs:nodejs /app/apps/api/package*.json ./apps/api/
-COPY --from=builder --chown=nodejs:nodejs /app/libs/engine/package*.json ./libs/engine/
-COPY --from=builder --chown=nodejs:nodejs /app/packages/rules/package*.json ./packages/rules/
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+# Copy production artifacts with non-root ownership
+COPY --from=builder --chown=gasguard:gasguard /app/package*.json ./
+COPY --from=builder --chown=gasguard:gasguard /app/apps/api/package*.json ./apps/api/
+COPY --from=builder --chown=gasguard:gasguard /app/libs/engine/package*.json ./libs/engine/
+COPY --from=builder --chown=gasguard:gasguard /app/packages/rules/package*.json ./packages/rules/
+COPY --from=builder --chown=gasguard:gasguard /app/node_modules ./node_modules
+COPY --from=builder --chown=gasguard:gasguard /app/dist ./dist
 
-# Copy built application
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+# Create logs directory owned by non-root user
+RUN mkdir -p /app/logs && chown -R gasguard:gasguard /app/logs
 
-# Set environment
-ENV NODE_ENV=production
-ENV PORT=3000
+# Environment configuration
+ENV NODE_ENV=production \
+    PORT=3000
 
-# Expose port
+# Expose internal listening port
 EXPOSE 3000
 
-# Switch to non-root user
-USER nodejs
+# Health check using non-root wget against internal endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Use tini as init process
+# Enforce non-root execution
+USER gasguard
+
+# Use tini as PID 1 init process to handle zombie reap and signal forwarding
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Start the API
+# Launch application
 CMD ["node", "dist/apps/api/main.js"]

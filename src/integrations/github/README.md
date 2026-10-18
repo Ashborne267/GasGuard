@@ -402,3 +402,80 @@ When adding new features to this module:
 ## License
 
 This module is part of GasGuard and follows the same license.
+
+---
+
+## Additional Integration Features
+
+### 5. Pull Request Changed-File Discovery (#1043)
+
+Discovers changed files in a pull request with pagination support, file-type filtering, smart contract isolation, and security-sensitive file detection:
+
+```typescript
+import { PullRequestFileDiscovery, GitHubClient } from '@/integrations/github';
+
+const client = new GitHubClient({ token: process.env.GITHUB_TOKEN });
+const discovery = new PullRequestFileDiscovery(client, {
+  owner: 'MDTechLabs',
+  repo: 'GasGuard',
+  isPrivate: false,
+  defaultBranch: 'main',
+});
+
+// Discover all changed files
+const files = await discovery.getChangedFiles(1043, { maxFiles: 200 });
+
+// Extract modified smart contracts
+const contracts = await discovery.getContractFiles(1043);
+
+// Get summary metrics and detect workflow/security changes
+const summary = await discovery.getChangeSummary(1043);
+if (summary.hasSecurityOrConfigFileChanges) {
+  console.log('Sensitive files changed:', summary.criticalFilesTouched);
+}
+```
+
+### 6. GitHub Organization Allowlist (#1042)
+
+Enforces organization-level access policies with case insensitivity, wildcard matching, and cached author membership validation:
+
+```typescript
+import { OrganizationAllowlist, GitHubClient } from '@/integrations/github';
+
+const allowlist = new OrganizationAllowlist({
+  allowedOrganizations: ['MDTechLabs', 'trusted-partner-*'],
+  allowWildcards: true,
+  strictCase: false,
+  requireVerifiedMembers: true,
+}, client);
+
+// Validate repository
+const repoCheck = allowlist.validateRepository('MDTechLabs/GasGuard');
+if (!repoCheck.allowed) {
+  throw new Error(`Repository rejected: ${repoCheck.reason}`);
+}
+
+// Validate PR author membership
+const authorCheck = await allowlist.validateAuthor('MDTechLabs', 'contributor');
+```
+
+### 7. GitHub Repository Installation Validation (#1041)
+
+Validates that a GitHub App is actively installed on target repositories with sufficient permissions:
+
+```typescript
+import { InstallationValidator, GitHubClient } from '@/integrations/github';
+
+const validator = new InstallationValidator(client, repository);
+const result = await validator.validateRepositoryInstallation('MDTechLabs', 'GasGuard', {
+  requiredPermissions: {
+    pull_requests: 'read',
+    contents: 'read',
+  },
+});
+
+if (!result.valid) {
+  console.error('Installation invalid:', result.errors);
+  console.log('Remediation:', result.details);
+}
+```

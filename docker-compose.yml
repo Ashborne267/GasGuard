@@ -6,6 +6,8 @@ services:
     image: postgres:15-alpine
     container_name: gasguard-postgres
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     environment:
       POSTGRES_USER: ${DB_USER:-gasguard}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gasguard123}
@@ -34,6 +36,8 @@ services:
     image: redis:7-alpine
     container_name: gasguard-redis
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
     volumes:
       - redis-data:/data
@@ -60,6 +64,9 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: gasguard-api
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    user: "10001:10001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,6 +121,9 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: gasguard-api-canary
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    user: "10001:10001"
     profiles: ["canary"]
     depends_on:
       postgres:
@@ -163,6 +173,8 @@ services:
     image: nginx:1.27-alpine
     container_name: gasguard-nginx-canary
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     profiles: ["canary"]
     depends_on:
       - api

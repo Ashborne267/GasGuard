@@ -1,0 +1,59 @@
+name: Container Image Security Scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/dockerfile'
+      - 'apps/api-service/Dockerfile.e2e'
+      - 'docker-compose.yml'
+      - '.github/workflows/container-security-scan.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/dockerfile'
+      - 'apps/api-service/Dockerfile.e2e'
+      - 'docker-compose.yml'
+      - '.github/workflows/container-security-scan.yml'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-scan:
+    name: Build & Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/dockerfile
+          push: false
+          load: true
+          tags: gasguard-api:scan-target
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner on built image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'gasguard-api:scan-target'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF report to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
