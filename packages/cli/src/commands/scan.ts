@@ -9,6 +9,7 @@ import {
   type ScanResult,
 } from "../reporting/json-reporter";
 import { generateSarifReport } from "../reporting/sarif-reporter";
+import { generateGitLabReport } from "../reporting/gitlab-reporter";
 import { printSummary } from "../reporting/summary-printer";
 import { SolidityAnalyzer } from "../../../../libs/engine/analyzers/solidity-analyzer";
 import { RustAnalyzer } from "../../../../libs/engine/analyzers/rust-analyzer";
@@ -28,7 +29,7 @@ import {
 
 export interface ScanCommandOptions {
   output?: string;
-  format?: "json" | "sarif" | "text" | "both";
+  format?: "json" | "sarif" | "gitlab" | "text" | "both";
   summary?: boolean;
   fixPreview?: boolean;
   watch?: boolean;
@@ -67,7 +68,10 @@ export const scanCommand = new Command("scan")
   .description("Scan smart contracts for gas optimization opportunities")
   .arguments("[path]")
   .option("-o, --output <file>", "Output file for JSON report")
-  .option("-f, --format <format>", "Output format (json, sarif, text, both)")
+  .option(
+    "-f, --format <format>",
+    "Output format (json, sarif, gitlab, text, both)",
+  )
   .option("--no-summary", "Disable printable summary")
   .option("--fix-preview", "Show fix previews for violations")
   .option(
@@ -218,6 +222,14 @@ export async function runScan(
       path.join(os.tmpdir(), `gasguard-report-${randomUUID()}.sarif.json`);
     await generateSarifReport(scanResults, outputPath);
     logInfo(chalk.green(`SARIF report saved to ${outputPath}`));
+  }
+
+  if (format === "gitlab") {
+    const outputPath =
+      options.output ||
+      path.join(os.tmpdir(), `gl-code-quality-report-${randomUUID()}.json`);
+    await generateGitLabReport(scanResults, outputPath);
+    logInfo(chalk.green(`GitLab Code Quality report saved to ${outputPath}`));
   }
 
   if (

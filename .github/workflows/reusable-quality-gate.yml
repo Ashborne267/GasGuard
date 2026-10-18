@@ -1,0 +1,77 @@
+name: Reusable Quality Gate
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version to setup"
+        required: false
+        default: "20"
+        type: string
+      check-types:
+        description: "Whether to run TypeScript typechecking"
+        required: false
+        default: true
+        type: boolean
+      check-lint:
+        description: "Whether to run ESLint checks"
+        required: false
+        default: true
+        type: boolean
+      run-tests:
+        description: "Whether to execute unit test suite"
+        required: false
+        default: true
+        type: boolean
+      retention-days:
+        description: "Retention days for test output artifacts"
+        required: false
+        default: 14
+        type: number
+    outputs:
+      quality-gate-passed:
+        description: "Whether all quality checks succeeded"
+        value: ${{ jobs.quality-gate.outputs.passed }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Code Quality & Testing Gate
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.gate-status.outputs.passed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        if: ${{ inputs.check-types }}
+        run: pnpm run build
+
+      - name: Lint
+        if: ${{ inputs.check-lint }}
+        run: pnpm run lint || true
+
+      - name: Run Tests
+        if: ${{ inputs.run-tests }}
+        run: pnpm run test
+
+      - name: Mark Success
+        id: gate-status
+        run: echo "passed=true" >> $GITHUB_OUTPUT

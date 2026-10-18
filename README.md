@@ -316,6 +316,10 @@ await reporter.saveReport(reportData, './reports/coverage.html', {
 
 For comprehensive documentation, see:
 - [Analyzer Coverage Reporting Documentation](./docs/ANALYZER_COVERAGE_REPORTING.md)
+- [GitLab CI Integration & Output Format](./docs/GITLAB_CI_INTEGRATION.md)
+- [CI Artifact Retention Guidance](./docs/CI_ARTIFACT_RETENTION_GUIDANCE.md)
+- [Reusable CI Workflow Templates](./docs/REUSABLE_CI_WORKFLOW_TEMPLATES.md)
+- [Finding History Timeline](./docs/FINDING_HISTORY_TIMELINE.md)
 - [Coverage Module README](./src/reporting/coverage/README.md)
 - [Example Usage](./src/reporting/coverage/example.ts)
 

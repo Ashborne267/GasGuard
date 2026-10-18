@@ -1,0 +1,21 @@
+name: GasGuard Smart Contract Scan
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gasguard:
+    uses: MDTechLabs/GasGuard/.github/workflows/reusable-gasguard-scan.yml@main
+    with:
+      contracts-path: "contracts"
+      report-format: "sarif"
+      fail-on-severity: "high"
+      retention-days: 30
+      upload-artifact: true

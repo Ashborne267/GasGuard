@@ -378,6 +378,7 @@ jobs:
             provenance-npm.json
             provenance-cargo.json
           if-no-files-found: ignore
+          retention-days: 14
 
   artifact-checksums:
     name: Artifact Checksums
@@ -420,3 +421,4 @@ jobs:
         with:
           name: sha256-checksums
           path: SHA256SUMS
+          retention-days: 14
