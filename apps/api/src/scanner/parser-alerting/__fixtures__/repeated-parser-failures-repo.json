@@ -1,0 +1,63 @@
+{
+  "repository": {
+    "url": "https://github.com/MDTechLabs/defi-vault-protocol",
+    "defaultBranch": "main",
+    "languages": ["solidity", "vyper"]
+  },
+  "scans": [
+    {
+      "scanId": "scan-commit-1",
+      "commitHash": "b1a2c3d4e5f60001",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": false,
+      "filesScanned": 12
+    },
+    {
+      "scanId": "scan-commit-2",
+      "commitHash": "b1a2c3d4e5f60002",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": true,
+      "failureCategory": "syntax_error",
+      "diagnosticCodes": ["unexpected_token", "invalid_pragma"],
+      "errorSummary": "Solidity syntax error on custom transient storage opcode"
+    },
+    {
+      "scanId": "scan-commit-3",
+      "commitHash": "b1a2c3d4e5f60003",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": true,
+      "failureCategory": "syntax_error",
+      "diagnosticCodes": ["unexpected_token"],
+      "errorSummary": "Syntax error persisting in VaultStorage.sol"
+    },
+    {
+      "scanId": "scan-commit-4",
+      "commitHash": "b1a2c3d4e5f60004",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": true,
+      "failureCategory": "recursion_limit",
+      "diagnosticCodes": ["recursion_limit_exceeded"],
+      "errorSummary": "Parser worker reached maximum recursion depth"
+    },
+    {
+      "scanId": "scan-commit-5",
+      "commitHash": "b1a2c3d4e5f60005",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": false,
+      "filesScanned": 14
+    },
+    {
+      "scanId": "scan-commit-6",
+      "commitHash": "b1a2c3d4e5f60006",
+      "language": "solidity",
+      "parserName": "solidity-ast-parser-v2",
+      "hasFailed": false,
+      "filesScanned": 14
+    }
+  ]
+}

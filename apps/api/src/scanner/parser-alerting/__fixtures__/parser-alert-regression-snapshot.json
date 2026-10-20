@@ -1,0 +1,14 @@
+{
+  "description": "Deterministic regression snapshot for repeated parser failure alert evaluation",
+  "expectedAlertsTriggered": 1,
+  "expectedAlertsResolved": 1,
+  "expectedTriggerScanId": "scan-commit-4",
+  "expectedConsecutiveFailuresAtTrigger": 3,
+  "expectedSeverityAtTrigger": "warning",
+  "expectedResolvingScanId": "scan-commit-6",
+  "expectedDiagnosticCodes": {
+    "unexpected_token": 2,
+    "invalid_pragma": 1,
+    "recursion_limit_exceeded": 1
+  }
+}
