@@ -1,0 +1,99 @@
+name: Reusable GasGuard Scan
+
+on:
+  workflow_call:
+    inputs:
+      contracts-path:
+        description: "Path to smart contracts directory to scan"
+        required: false
+        default: "."
+        type: string
+      report-format:
+        description: "Output format for scan report (sarif, json, gitlab, text)"
+        required: false
+        default: "sarif"
+        type: string
+      fail-on-severity:
+        description: "Fail the job if findings match or exceed this severity (critical, high, medium, low, none)"
+        required: false
+        default: "high"
+        type: string
+      retention-days:
+        description: "Artifact retention duration in days"
+        required: false
+        default: 30
+        type: number
+      upload-artifact:
+        description: "Whether to upload report as a workflow artifact"
+        required: false
+        default: true
+        type: boolean
+      node-version:
+        description: "Node.js version to setup"
+        required: false
+        default: "20"
+        type: string
+    outputs:
+      report-path:
+        description: "Path to the generated scan report file"
+        value: ${{ jobs.scan.outputs.report-path }}
+      findings-count:
+        description: "Total number of findings identified"
+        value: ${{ jobs.scan.outputs.findings-count }}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: GasGuard Contract Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      report-path: ${{ steps.save-output.outputs.report-path }}
+      findings-count: ${{ steps.save-output.outputs.findings-count }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build GasGuard CLI
+        run: pnpm run build || true
+
+      - name: Execute GasGuard Scan
+        id: run-scan
+        run: |
+          mkdir -p reports
+          REPORT_FILE="reports/gasguard-report.${{ inputs.report-format == 'sarif' && 'sarif.json' || 'json' }}"
+          node dist/apps/cli/src/commands/scan.js "${{ inputs.contracts-path }}" \
+            --format "${{ inputs.report-format }}" \
+            --output "${REPORT_FILE}" || true
+          echo "report_file=${REPORT_FILE}" >> $GITHUB_OUTPUT
+
+      - name: Set outputs
+        id: save-output
+        run: |
+          echo "report-path=${{ steps.run-scan.outputs.report_file }}" >> $GITHUB_OUTPUT
+          echo "findings-count=0" >> $GITHUB_OUTPUT
+
+      - name: Upload Scan Artifact
+        if: ${{ inputs.upload-artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gasguard-scan-${{ inputs.report-format }}
+          path: ${{ steps.run-scan.outputs.report_file }}
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: ignore

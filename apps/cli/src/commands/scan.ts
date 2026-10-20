@@ -9,13 +9,15 @@
 import * as fs from "fs";
 
 import { RuleMatch, toSarifString } from "../formatters/sarif-formatter";
+import { toGitLabCodeQualityString } from "../formatters/gitlab-formatter";
 
-export type ReportFormat = "text" | "json" | "sarif";
+export type ReportFormat = "text" | "json" | "sarif" | "gitlab";
 
 export const SUPPORTED_FORMATS: readonly ReportFormat[] = [
   "text",
   "json",
   "sarif",
+  "gitlab",
 ];
 
 export interface ScanReportOptions {
@@ -58,6 +60,8 @@ export function formatReport(
       return `${JSON.stringify(matches, null, 2)}\n`;
     case "sarif":
       return toSarifString(matches, options.toolVersion);
+    case "gitlab":
+      return toGitLabCodeQualityString(matches);
     case "text":
       return formatText(matches);
     default:

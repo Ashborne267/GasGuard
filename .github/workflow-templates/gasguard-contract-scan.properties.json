@@ -1,0 +1,16 @@
+{
+  "name": "GasGuard Smart Contract Gas & Security Scan",
+  "description": "Analyze Solidity and Rust smart contracts for gas anti-patterns and vulnerabilities.",
+  "iconName": "shield",
+  "categories": [
+    "Security",
+    "Continuous integration"
+  ],
+  "filePatterns": [
+    "contracts/**/*.sol",
+    "src/**/*.rs",
+    "Cargo.toml",
+    "hardhat.config.*",
+    "foundry.toml"
+  ]
+}
